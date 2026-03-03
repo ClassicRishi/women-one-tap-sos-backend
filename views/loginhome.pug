@@ -1,0 +1,185 @@
+doctype html
+html(lang="en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport", content="width=device-width, initial-scale=1.0")
+    title Women Safety | One-Tap SOS
+
+    //- ====== STYLES ======
+    style.
+      @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&display=swap');
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: 'Nunito', sans-serif;
+      }
+
+      body {
+        background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+        color: white;
+      }
+
+      .container {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 30px 20px;
+        text-align: center;
+      }
+
+      h1 {
+        font-size: 2.5rem;
+        margin-bottom: 10px;
+      }
+
+      h1 span {
+        color: #ff4d6d;
+        text-transform: uppercase;
+      }
+
+      p.subtitle {
+        margin-bottom: 40px;
+        color: #ddd;
+      }
+
+      .features {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        width: 100%;
+        max-width: 900px;
+        margin-bottom: 50px;
+      }
+
+      .card {
+        background: rgba(255,255,255,0.1);
+        padding: 20px;
+        border-radius: 15px;
+        backdrop-filter: blur(10px);
+        cursor: pointer;
+        transition: 0.3s ease;
+      }
+
+      .card:hover {
+        background: #ff4d6d;
+        transform: translateY(-5px);
+      }
+
+      .card h3 {
+        margin-top: 10px;
+      }
+
+      .card .icon {
+        font-size: 2rem;
+      }
+
+      .card-highlight {
+        background: linear-gradient(135deg, rgba(233,69,96,0.3), rgba(194,49,82,0.3));
+        border: 1px solid rgba(233,69,96,0.4);
+        animation: glow 2s ease-in-out infinite alternate;
+      }
+
+      .card-highlight:hover {
+        background: linear-gradient(135deg, #e94560, #c23152);
+      }
+
+      @keyframes glow {
+        from { box-shadow: 0 0 5px rgba(233,69,96,0.3); }
+        to   { box-shadow: 0 0 20px rgba(233,69,96,0.5); }
+      }
+
+      .sos-btn {
+        width: 160px;
+        height: 160px;
+        border-radius: 50%;
+        border: none;
+        background: #ff1e56;
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: white;
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .sos-btn:focus {
+        outline: 3px solid #fff;
+      }
+
+      .ripple {
+        position: absolute;
+        border-radius: 50%;
+        transform: scale(0);
+        animation: ripple 600ms linear;
+        background-color: rgba(255, 255, 255, 0.7);
+      }
+
+      @keyframes ripple {
+        to {
+          transform: scale(4);
+          opacity: 0;
+        }
+      }
+
+  body
+    div(class="container")
+      h1 Women Safety 
+        span One-Tap SOS
+      p(class="subtitle") Stay safe. Alert your trusted contacts instantly in emergencies.
+
+      div(class="features")
+        div(class="card card-highlight", onclick="goToCurrentLocation()")
+          div(class="icon") 📍
+          h3 Current Location
+          p View your current location on the map and find safe routes.
+
+        div(class="card", onclick="liveTracking()")
+          div(class="icon") �️
+          h3 Live Tracking
+          p Share your real-time location with trusted contacts.
+
+        div(class="card", onclick="emergencyCall()")
+          div(class="icon") 📞
+          h3 Emergency Call
+          p Instantly call emergency services.
+
+        div(class="card", onclick="trustedContacts()")
+          div(class="icon") 👥
+          h3 Trusted Contacts
+          p Manage your emergency contact list.
+
+      button(class="sos-btn", onclick="triggerSOS(event)", aria-label="Trigger SOS") SOS
+
+    //- ====== SCRIPTS ======
+    script.
+      function triggerSOS(e) {
+        let btn = e.currentTarget;
+        let circle = document.createElement("span");
+        circle.classList.add("ripple");
+        let rect = btn.getBoundingClientRect();
+        circle.style.left = (e.clientX - rect.left) + "px";
+        circle.style.top = (e.clientY - rect.top) + "px";
+        btn.appendChild(circle);
+        setTimeout(() => circle.remove(), 600);
+
+        alert("🚨 SOS Triggered! Your contacts have been notified.");
+      }
+
+      function goToCurrentLocation() {
+        window.location.href = "http://localhost:3000/mappage";
+      }
+
+      function liveTracking() {
+        window.location.href = "http://localhost:3000/mappage";
+      }
+
+      function emergencyCall() {
+        alert("📞 Dialing emergency services...");
+      }
+
+      function trustedContacts() {
+        alert("👥 Opening trusted contacts manager...");
+      }

@@ -1,190 +1,267 @@
+const { MongoClient } = require("mongodb");
+const { roads } = require("./graphData");
+
+const uri = process.env.MONGO_URI || "mongodb://127.0.0.1:27017";
+const client = new MongoClient(uri);
+
 /**
  * ══════════════════════════════════════════════════════════
- *  DISTRICT ROAD NETWORK & COORDINATES
- *  Tamil Nadu + Karnataka sub-areas / cities / districts
+ *  MULTI-FACTOR SAFETY SCORING ENGINE
+ * ──────────────────────────────────────────────────────────
+ *  Factors considered for each district:
+ *
+ *  1. CRIME RATE       → crimes_against_women / population
+ *     Lower = safer.  Weight: 0.40
+ *
+ *  2. POLICE COVERAGE  → police_stations per 100k population
+ *     Higher = safer.  Weight: 0.30
+ *
+ *  3. CROWD DENSITY    → population (proxy for crowd / footfall)
+ *     Higher population = more people around = safer.  Weight: 0.20
+ *
+ *  4. TIME OF DAY      → night-time multiplier on risk
+ *     Night hours amplify crime risk.  Weight: built into formula
+ *
+ *  5. LITERACY RATE    → literacy or awareness indicator
+ *     Higher = safer environment.  Weight: 0.10
+ *
+ *  Final riskScore per district: 0 (safest) → 1 (most dangerous)
  * ══════════════════════════════════════════════════════════
  */
 
-// [districtA, districtB, distanceKm]
-const roads = [
-  // ─── Tamil Nadu internal routes ───
-  ["Chennai", "Kanchipuram", 75],
-  ["Chennai", "Tiruvallur", 45],
-  ["Chennai", "Chengalpattu", 55],
-  ["Kanchipuram", "Vellore", 90],
-  ["Kanchipuram", "Villupuram", 95],
-  ["Chengalpattu", "Villupuram", 110],
-  ["Chengalpattu", "Kanchipuram", 40],
-  ["Tiruvallur", "Kanchipuram", 65],
-  ["Tiruvallur", "Vellore", 120],
-  ["Vellore", "Krishnagiri", 85],
-  ["Vellore", "Tiruvannamalai", 90],
-  ["Tiruvannamalai", "Villupuram", 70],
-  ["Tiruvannamalai", "Salem", 110],
-  ["Villupuram", "Cuddalore", 35],
-  ["Villupuram", "Salem", 140],
-  ["Cuddalore", "Thanjavur", 145],
-  ["Cuddalore", "Nagapattinam", 80],
-  ["Salem", "Erode", 65],
-  ["Salem", "Namakkal", 55],
-  ["Salem", "Krishnagiri", 95],
-  ["Salem", "Dharmapuri", 70],
-  ["Erode", "Coimbatore", 95],
-  ["Erode", "Tirupur", 50],
-  ["Erode", "Namakkal", 55],
-  ["Coimbatore", "Tirupur", 55],
-  ["Coimbatore", "Nilgiris", 85],
-  ["Coimbatore", "Dindigul", 135],
-  ["Namakkal", "Tiruchirappalli", 60],
-  ["Tiruchirappalli", "Thanjavur", 55],
-  ["Tiruchirappalli", "Dindigul", 95],
-  ["Tiruchirappalli", "Pudukkottai", 50],
-  ["Thanjavur", "Nagapattinam", 85],
-  ["Dindigul", "Madurai", 65],
-  ["Dindigul", "Theni", 65],
-  ["Madurai", "Sivagangai", 45],
-  ["Madurai", "Virudhunagar", 60],
-  ["Madurai", "Theni", 75],
-  ["Virudhunagar", "Ramanathapuram", 80],
-  ["Virudhunagar", "Thoothukudi", 85],
-  ["Virudhunagar", "Tirunelveli", 85],
-  ["Tirunelveli", "Thoothukudi", 50],
-  ["Tirunelveli", "Kanyakumari", 85],
-  ["Thoothukudi", "Kanyakumari", 130],
-  ["Dharmapuri", "Krishnagiri", 55],
+async function loadRisk() {
+  await client.connect();
+  const db = client.db("policeDB");
 
-  // ─── Extra TN cross-connections (for multiple alternative routes) ───
-  ["Salem", "Nilgiris", 170],           // via hill road (longer but alternate)
-  ["Salem", "Tirupur", 110],            // direct alternate
-  ["Salem", "Coimbatore", 160],         // direct (longer alternate)
-  ["Nilgiris", "Tirupur", 100],         // hill road
-  ["Nilgiris", "Erode", 140],           // alternate via hills
-  ["Dindigul", "Tirupur", 110],         // cross link
-  ["Namakkal", "Dindigul", 115],        // cross link
-  ["Namakkal", "Erode", 55],            // already exists but adds path diversity
-  ["Dharmapuri", "Tiruvannamalai", 95],  // cross link
-  ["Dharmapuri", "Erode", 130],         // alternate
-  ["Cuddalore", "Tiruchirappalli", 155], // coastal alternate
-  ["Madurai", "Tiruchirappalli", 130],  // direct link
-  ["Madurai", "Thoothukudi", 135],      // direct
-  ["Sivagangai", "Ramanathapuram", 60], // cross link
-  ["Sivagangai", "Pudukkottai", 55],    // cross link
-  ["Thanjavur", "Pudukkottai", 55],     // cross link
-  ["Thanjavur", "Dindigul", 165],       // alternate
-  ["Chennai", "Villupuram", 155],       // direct coastal
+  const tn = await db.collection("tamilnadu").find().toArray();
+  const ka = await db.collection("karnataka").find().toArray();
+  const districts = [...tn, ...ka];
 
-  // ─── Karnataka internal routes ───
-  ["Bengaluru City", "Bengaluru Rural", 35],
-  ["Bengaluru City", "Ramanagara", 55],
-  ["Bengaluru City", "Tumakuru", 70],
-  ["Bengaluru City", "Kolar", 65],
-  ["Bengaluru City", "Chikkaballapura", 55],
-  ["Bengaluru Rural", "Ramanagara", 40],
-  ["Ramanagara", "Mandya", 55],
-  ["Ramanagara", "Mysuru", 95],
-  ["Mandya", "Mysuru", 45],
-  ["Mandya", "Hassan", 85],
-  ["Mysuru", "Chamarajanagar", 60],
-  ["Mysuru", "Kodagu", 95],
-  ["Mysuru", "Hassan", 115],
-  ["Tumakuru", "Chitradurga", 115],
-  ["Tumakuru", "Hassan", 130],
-  ["Tumakuru", "Davangere", 180],
-  ["Chitradurga", "Davangere", 70],
-  ["Chitradurga", "Bellary", 120],
-  ["Davangere", "Haveri", 75],
-  ["Davangere", "Shimoga", 85],
-  ["Shimoga", "Udupi", 125],
-  ["Shimoga", "Chikkamagaluru", 60],
-  ["Chikkamagaluru", "Hassan", 50],
-  ["Chikkamagaluru", "Kodagu", 100],
-  ["Hassan", "Chikkamagaluru", 50],
-  ["Haveri", "Dharwad", 65],
-  ["Dharwad", "Belagavi", 75],
-  ["Dharwad", "Gadag", 55],
-  ["Belagavi", "Bagalkot", 100],
-  ["Gadag", "Bagalkot", 60],
-  ["Gadag", "Koppal", 65],
-  ["Koppal", "Raichur", 60],
-  ["Raichur", "Yadgir", 75],
-  ["Raichur", "Bellary", 75],
-  ["Bellary", "Koppal", 70],
-  ["Yadgir", "Kalaburagi", 80],
-  ["Kalaburagi", "Bidar", 110],
-  ["Kolar", "Chikkaballapura", 35],
-  ["Udupi", "Dakshina Kannada", 55],
-  ["Dakshina Kannada", "Kodagu", 115],
+  // ── compute raw metrics per district ──
+  districts.forEach((d) => {
+    // crime rate: crimes against women per 100k population
+    const crimeCount = d.crimes_against_women || d.crime_count || d.total_crimes || 0;
+    d.crimeRate = d.population ? (crimeCount / d.population) * 100000 : 50;
 
-  // ─── Cross-state connections ───
-  ["Krishnagiri", "Bengaluru City", 90],
-  ["Krishnagiri", "Kolar", 80],
-  ["Krishnagiri", "Chikkaballapura", 100],
-  ["Nilgiris", "Mysuru", 135],
-  ["Coimbatore", "Chamarajanagar", 190],
-];
+    // police coverage: stations per 100k population (higher = better)
+    d.policeCoverage = d.population && d.police_stations
+      ? (d.police_stations / d.population) * 100000
+      : 5;
 
-// Lat/Lng for each district
-const districtCoords = {
-  // ─── Tamil Nadu ───
-  "Chennai": [13.0827, 80.2707],
-  "Kanchipuram": [12.837, 79.7],
-  "Tiruvallur": [13.1431, 79.9094],
-  "Chengalpattu": [12.6819, 79.9888],
-  "Vellore": [12.9165, 79.1325],
-  "Tiruvannamalai": [12.2253, 79.0747],
-  "Villupuram": [11.9395, 79.4924],
-  "Cuddalore": [11.7480, 79.7714],
-  "Salem": [11.6643, 78.146],
-  "Namakkal": [11.2189, 78.1674],
-  "Erode": [11.3410, 77.7172],
-  "Coimbatore": [11.0168, 76.9558],
-  "Tirupur": [11.1085, 77.3411],
-  "Nilgiris": [11.4916, 76.7337],
-  "Krishnagiri": [12.5186, 78.2137],
-  "Dharmapuri": [12.1211, 78.1582],
-  "Tiruchirappalli": [10.7905, 78.7047],
-  "Thanjavur": [10.787, 79.1378],
-  "Nagapattinam": [10.7672, 79.8449],
-  "Pudukkottai": [10.3833, 78.8001],
-  "Dindigul": [10.3673, 77.9803],
-  "Madurai": [9.9252, 78.1198],
-  "Theni": [10.0104, 77.4768],
-  "Sivagangai": [9.8433, 78.4809],
-  "Virudhunagar": [9.5851, 77.9526],
-  "Ramanathapuram": [9.3762, 78.8308],
-  "Thoothukudi": [8.7642, 78.1348],
-  "Tirunelveli": [8.7139, 77.7567],
-  "Kanyakumari": [8.0883, 77.5385],
+    // crowd density: raw population (higher = more people = safer for women)
+    d.crowdDensity = d.population || 500000;
 
-  // ─── Karnataka ───
-  "Bengaluru City": [12.9716, 77.5946],
-  "Bengaluru Rural": [13.1263, 77.3920],
-  "Ramanagara": [12.7159, 77.2814],
-  "Tumakuru": [13.3379, 77.1173],
-  "Kolar": [13.1362, 78.1292],
-  "Chikkaballapura": [13.4355, 77.7315],
-  "Mandya": [12.5222, 76.8952],
-  "Mysuru": [12.2958, 76.6394],
-  "Chamarajanagar": [11.9236, 76.9398],
-  "Hassan": [13.0072, 76.0996],
-  "Kodagu": [12.4244, 75.7382],
-  "Chikkamagaluru": [13.3161, 75.7720],
-  "Shimoga": [13.9299, 75.5681],
-  "Davangere": [14.4644, 75.9218],
-  "Chitradurga": [14.2226, 76.3980],
-  "Bellary": [15.1394, 76.9214],
-  "Haveri": [14.7951, 75.3991],
-  "Dharwad": [15.4589, 75.0078],
-  "Belagavi": [15.8497, 74.4977],
-  "Gadag": [15.4319, 75.6348],
-  "Bagalkot": [16.1691, 75.6968],
-  "Koppal": [15.3547, 76.1548],
-  "Raichur": [16.2076, 77.3463],
-  "Yadgir": [16.7700, 77.1330],
-  "Kalaburagi": [17.3297, 76.8343],
-  "Bidar": [17.9104, 77.5199],
-  "Udupi": [13.3409, 74.7421],
-  "Dakshina Kannada": [12.8438, 75.2479],
-};
+    // literacy / awareness (if available in DB)
+    d.literacyRate = d.literacy_rate || d.literacy || 75;
+  });
 
-module.exports = { roads, districtCoords };
+  // ── normalize each metric to 0–1 range ──
+  function normalize(arr) {
+    const min = Math.min(...arr);
+    const max = Math.max(...arr);
+    const range = max - min || 1;
+    return arr.map((v) => (v - min) / range);
+  }
+
+  const crimeRates = normalize(districts.map((d) => d.crimeRate));
+  const policeCovers = normalize(districts.map((d) => d.policeCoverage));
+  const crowdDensity = normalize(districts.map((d) => d.crowdDensity));
+  const literacy = normalize(districts.map((d) => d.literacyRate));
+
+  // ── weighted risk score ──
+  // crimeRate:       higher = more dangerous → positive contribution
+  // policeCoverage:  higher = safer          → negative contribution (subtract)
+  // crowdDensity:    higher = safer          → negative contribution (subtract)
+  // literacy:        higher = safer          → negative contribution (subtract)
+
+  const W_CRIME = 0.40;
+  const W_POLICE = 0.30;
+  const W_CROWD = 0.20;
+  const W_LITERACY = 0.10;
+
+  let riskMap = {};
+
+  districts.forEach((d, i) => {
+    let risk =
+      W_CRIME * crimeRates[i]          // more crime → higher risk
+      - W_POLICE * policeCovers[i]       // more police → lower risk
+      - W_CROWD * crowdDensity[i]       // more crowd → lower risk
+      - W_LITERACY * literacy[i];        // higher literacy → lower risk
+
+    // clamp to 0–1
+    risk = Math.max(0, Math.min(1, (risk + 0.6) / 1.2)); // shift & scale to [0,1]
+
+    riskMap[d.district] = risk;
+  });
+
+  console.log("✅ Multi-factor risk data loaded:");
+  console.log("   Factors: Crime Rate (40%), Police Stations (30%), Crowd Density (20%), Literacy (10%)");
+  console.log("   Districts:", Object.keys(riskMap).length);
+
+  return riskMap;
+}
+
+/**
+ * Time-of-day risk multiplier:
+ *   Day    (06:00–18:00) → 1.0x  (normal)
+ *   Evening(18:00–22:00) → 1.3x  (slightly riskier)
+ *   Night  (22:00–06:00) → 1.8x  (much riskier — less crowd, less police patrol)
+ */
+function timeFactor() {
+  const h = new Date().getHours();
+  if (h >= 6 && h < 18) return 1.0;
+  if (h >= 18 && h < 22) return 1.3;
+  return 1.8;
+}
+
+// build adjacency list with weights and base distances
+function buildGraph(risk) {
+  const mult = timeFactor();
+  let graph = {};
+
+  roads.forEach(([a, b, distKm]) => {
+    // average risk of both ends of the road segment
+    const r = ((risk[a] || 0.5) + (risk[b] || 0.5)) / 2;
+    // weight = distance * (1 + riskPenalty * timeMultiplier)
+    const weight = distKm * (1 + r * mult);
+
+    if (!graph[a]) graph[a] = [];
+    if (!graph[b]) graph[b] = [];
+
+    graph[a].push({ node: b, w: weight, km: distKm });
+    graph[b].push({ node: a, w: weight, km: distKm });
+  });
+
+  return graph;
+}
+
+// compute score for a given path
+function scorePath(path, graph) {
+  let totalCost = 0;
+  let totalKm = 0;
+
+  for (let i = 0; i < path.length - 1; i++) {
+    const from = path[i];
+    const to = path[i + 1];
+    const edge = graph[from].find((e) => e.node === to);
+    if (!edge) continue;
+    totalCost += edge.w;
+    totalKm += edge.km;
+  }
+
+  const avgRiskPenalty = totalCost / (totalKm || 1);
+  // normalize so lower risk → higher safety score
+  const normalized = 1 / (1 + avgRiskPenalty / 100);
+  const safetyScore = Math.max(0, Math.min(100, Math.round(normalized * 100)));
+
+  return { totalCost, totalKm, safetyScore };
+}
+
+// enumerate all simple paths with DFS (graph is tiny)
+function findAllPaths(start, end, graph, maxPaths = 10) {
+  let results = [];
+  function dfs(node, visited, path) {
+    if (path.length > 10) return; // safety guard
+    if (node === end) {
+      results.push([...path]);
+      return;
+    }
+    for (const nb of graph[node] || []) {
+      if (visited.has(nb.node)) continue;
+      visited.add(nb.node);
+      path.push(nb.node);
+      dfs(nb.node, visited, path);
+      path.pop();
+      visited.delete(nb.node);
+    }
+  }
+  const visited = new Set([start]);
+  dfs(start, visited, [start]);
+  return results.slice(0, maxPaths);
+}
+
+// single safest path (kept for compatibility)
+function safestPath(start, end, risk) {
+  const graph = buildGraph(risk);
+  const paths = findAllPaths(start, end, graph, 5);
+  if (!paths.length) return { path: [], cost: 0, safetyScore: 0 };
+
+  const scored = paths.map((p) => {
+    const { totalCost, safetyScore } = scorePath(p, graph);
+    return { path: p, cost: totalCost, safetyScore };
+  });
+
+  scored.sort((a, b) => b.safetyScore - a.safetyScore);
+  return scored[0];
+}
+
+// top-k DIVERSE routes: safest, shortest, and balanced
+function multiSafePaths(start, end, risk, k = 3) {
+  const graph = buildGraph(risk);
+  const paths = findAllPaths(start, end, graph, 15);
+  if (!paths.length) return [];
+
+  const scored = paths.map((p) => {
+    const { totalCost, totalKm, safetyScore } = scorePath(p, graph);
+    const estimatedMinutes = Math.round((totalKm / 60) * 60); // avg 60 km/h
+    return {
+      path: p,
+      cost: totalCost,
+      km: totalKm,
+      safetyScore,
+      estimatedMinutes,
+    };
+  });
+
+  // ── Pick 3 diverse routes ──
+  // 1. SAFEST: highest safety score (regardless of distance)
+  const bySafety = [...scored].sort((a, b) => b.safetyScore - a.safetyScore);
+  const safest = bySafety[0];
+
+  // 2. SHORTEST: minimum distance (regardless of safety)
+  const byDistance = [...scored].sort((a, b) => a.km - b.km);
+  const shortest = byDistance.find(
+    (r) => JSON.stringify(r.path) !== JSON.stringify(safest.path)
+  ) || byDistance[0];
+
+  // 3. BALANCED: best combo (safety * 0.5 + distanceRank * 0.5)
+  //    or just the best route that's different from the other two
+  const usedPaths = new Set([
+    JSON.stringify(safest.path),
+    JSON.stringify(shortest.path),
+  ]);
+  const balanced = scored.find(
+    (r) => !usedPaths.has(JSON.stringify(r.path))
+  );
+
+  // Assemble final result: always safest first, then balanced, then shortest
+  const result = [safest];
+  if (balanced) result.push(balanced);
+  if (
+    JSON.stringify(shortest.path) !== JSON.stringify(safest.path) &&
+    (!balanced || JSON.stringify(shortest.path) !== JSON.stringify(balanced.path))
+  ) {
+    result.push(shortest);
+  }
+
+  // If we still have fewer than k, fill from remaining
+  if (result.length < k) {
+    for (const r of scored) {
+      if (result.length >= k) break;
+      const key = JSON.stringify(r.path);
+      if (!usedPaths.has(key)) {
+        result.push(r);
+        usedPaths.add(key);
+      }
+    }
+  }
+
+  // Add labels
+  const labels = ["Safest Route", "Moderate Route", "Shortest Route"];
+  return result.slice(0, k).map((r, i) => ({
+    ...r,
+    safetyLabel: labels[i] || "Route",
+  }));
+}
+
+module.exports = { loadRisk, safestPath, multiSafePaths };

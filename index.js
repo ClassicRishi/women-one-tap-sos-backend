@@ -393,7 +393,7 @@ app.post("/api/sos-alert", async (req, res) => {
 // ═══════════════════════════════════════════════
 
 // sign up
-app.post("/api/user/register", async (req, res) => {
+app.post("/user/register", async (req, res) => {
   const { fullname, email, phone } = req.body;
   const password = await bcrypt.hash(req.body.password, 10);
   try {
@@ -416,7 +416,7 @@ app.post("/api/user/register", async (req, res) => {
 })
 
 // login
-app.post("/api/user/login", async function (req, res) {
+app.post("/user/login", async function (req, res) {
   const email = req.body.email;
   const password = req.body.password;
   const status = await db.collection('users').where("email", "==", email).get()

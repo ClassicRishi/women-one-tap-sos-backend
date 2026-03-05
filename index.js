@@ -10,7 +10,8 @@ const { MongoClient } = require("mongodb");
 // set up middleware
 const app = express();
 const PORT = process.env.PORT;
-const HOST_URL = process.env.HOST_URL;
+const GMAPS_API = process.env.GMAPS_API
+const FAST2SMS_API = process.env.FAST2SMS_API
 // app.use(cors({
 //   origin: HOST_URL,
 //   methods: ["GET","POST"],
@@ -40,7 +41,7 @@ async function sendFast2SMS(message, phoneNumber) {
   console.log(`📤 Sending SMS via Fast2SMS to: ${phoneNumber}`);
   console.log(`📝 Message: ${message.substring(0, 80)}...`);
 
-  const res = await fetch("https://www.fast2sms.com/dev/bulkV2", {
+  const res = await fetch(FAST2SMS_API, {
     method: "POST",
     headers: {
       "authorization": FAST2SMS_API_KEY,
@@ -244,7 +245,7 @@ app.post("/api/share-location", async (req, res) => {
     const contactsSnap = await db.collection("users").doc(uid)
       .collection("trustedContacts").get();
     const contacts = contactsSnap.docs.map(doc => doc.data());
-    const googleMapsLink = `https://www.google.com/maps?q=${lat},${lng}`;
+    const googleMapsLink = `${GMAPS_API}?q=${lat},${lng}`;
 
     // ── Send SMS via Fast2SMS to each trusted contact ──
     const smsMessage = `SOS ALERT from ${userData.fullname || "User"}! Live location: ${googleMapsLink} - Please check on me immediately!`;
@@ -306,7 +307,7 @@ app.post("/api/sos-alert", async (req, res) => {
 
     // Build SOS message
     const locationPart = (lat && lng)
-      ? `Live Location: https://www.google.com/maps?q=${lat},${lng}`
+      ? `Live Location: ${GMAPS_API}?q=${lat},${lng}`
       : "Location unavailable";
 
     const sosMessage = `EMERGENCY SOS! ${userName} is in DANGER and needs help NOW! ${locationPart} - Time: ${new Date().toLocaleString("en-IN")} - Please call or reach out immediately!`;
@@ -356,7 +357,7 @@ app.post("/api/sos-alert", async (req, res) => {
       smsError = "FAST2SMS_API_KEY not configured in .env file";
     }
 
-    const locationLink = (lat && lng) ? `https://www.google.com/maps?q=${lat},${lng}` : null;
+    const locationLink = (lat && lng) ? `${GMAPS_API}?q=${lat},${lng}` : null;
 
     // Build response with REAL status
     const response = {

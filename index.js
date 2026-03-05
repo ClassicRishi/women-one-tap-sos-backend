@@ -12,7 +12,11 @@ const { createProxyMiddleware } = require('http-proxy-middleware')
 const app = express();
 const PORT = process.env.PORT;
 const HOST_URL = process.env.HOST_URL;
-app.use(cors())
+app.use(cors({
+  origin: HOST_URL,
+  methods: ["POST","GET"],
+  credentials: true
+}))
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 app.set("view engine", "pug")

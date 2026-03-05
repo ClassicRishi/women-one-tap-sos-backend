@@ -10,6 +10,7 @@ const { MongoClient } = require("mongodb");
 // set up middleware
 const app = express();
 const PORT = process.env.PORT;
+const HOST_URL = process.env.HOST_URL;
 app.use(cors())
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
@@ -74,7 +75,7 @@ const mongoClient = new MongoClient(mongoUri);
 })();
 
 // initialize risk data
-app.get("https://merry-paprenjak-7cd359.netlify.app/api/init-risk", async (req, res) => {
+app.get(HOST_URL+"/api/init-risk", async (req, res) => {
   try {
     riskData = await loadRisk();
     res.json({ status: "Risk ready" });
@@ -84,7 +85,7 @@ app.get("https://merry-paprenjak-7cd359.netlify.app/api/init-risk", async (req, 
 });
 
 // ── GET /api/districts?state=tamilnadu|karnataka ──
-app.get("https://merry-paprenjak-7cd359.netlify.app/api/districts", async (req, res) => {
+app.get(HOST_URL+"/api/districts", async (req, res) => {
   const state = (req.query.state || "").toLowerCase().trim();
   const validStates = ["tamilnadu", "karnataka"];
   if (!validStates.includes(state)) {
@@ -127,7 +128,7 @@ function haversine(lat1, lon1, lat2, lon2) {
 }
 
 // nearest district from GPS coordinates
-app.get("https://merry-paprenjak-7cd359.netlify.app/api/nearest-district", (req, res) => {
+app.get(HOST_URL+"/api/nearest-district", (req, res) => {
   const lat = parseFloat(req.query.lat);
   const lng = parseFloat(req.query.lng);
   if (isNaN(lat) || isNaN(lng)) return res.status(400).json({ error: "lat and lng required" });
@@ -140,7 +141,7 @@ app.get("https://merry-paprenjak-7cd359.netlify.app/api/nearest-district", (req,
 });
 
 // route calculation
-app.post("https://merry-paprenjak-7cd359.netlify.app/api/safe-route", async (req, res) => {
+app.post(HOST_URL+"/api/safe-route", async (req, res) => {
   const { from, to } = req.body;
   if (!riskData)
     return res.status(400).json({ error: "Initialize risk first" });
@@ -153,7 +154,7 @@ app.post("https://merry-paprenjak-7cd359.netlify.app/api/safe-route", async (req
 // ═══════════════════════════════════════════════
 
 // GET  — fetch all trusted contacts for a user
-app.get("https://merry-paprenjak-7cd359.netlify.app/api/trusted-contacts", async (req, res) => {
+app.get(HOST_URL+"/api/trusted-contacts", async (req, res) => {
   const email = req.query.email;
   if (!email) return res.status(400).json({ error: "email required" });
   try {
@@ -171,7 +172,7 @@ app.get("https://merry-paprenjak-7cd359.netlify.app/api/trusted-contacts", async
 });
 
 // POST — add a new trusted contact
-app.post("https://merry-paprenjak-7cd359.netlify.app/api/trusted-contacts", async (req, res) => {
+app.post(HOST_URL+"/api/trusted-contacts", async (req, res) => {
   const { email, contactName, contactPhone, contactRelation } = req.body;
   if (!email || !contactName || !contactPhone)
     return res.status(400).json({ error: "email, contactName, contactPhone required" });
@@ -195,7 +196,7 @@ app.post("https://merry-paprenjak-7cd359.netlify.app/api/trusted-contacts", asyn
 });
 
 // DELETE — remove a trusted contact
-app.delete("https://merry-paprenjak-7cd359.netlify.app/api/trusted-contacts", async (req, res) => {
+app.delete(HOST_URL+"/api/trusted-contacts", async (req, res) => {
   const { email, contactId } = req.body;
   if (!email || !contactId)
     return res.status(400).json({ error: "email and contactId required" });
@@ -217,7 +218,7 @@ app.delete("https://merry-paprenjak-7cd359.netlify.app/api/trusted-contacts", as
 // ═══════════════════════════════════════════════
 
 // POST — share live location with trusted contacts
-app.post("https://merry-paprenjak-7cd359.netlify.app/api/share-location", async (req, res) => {
+app.post(HOST_URL+"/api/share-location", async (req, res) => {
   const { email, lat, lng } = req.body;
   if (!email || !lat || !lng)
     return res.status(400).json({ error: "email, lat, lng required" });
@@ -273,7 +274,7 @@ app.post("https://merry-paprenjak-7cd359.netlify.app/api/share-location", async 
 //   SOS ALERT — Emergency SMS to all contacts
 // ═══════════════════════════════════════════════
 
-app.post("https://merry-paprenjak-7cd359.netlify.app/api/sos-alert", async (req, res) => {
+app.post(HOST_URL+"/api/sos-alert", async (req, res) => {
   const { email, lat, lng } = req.body;
   if (!email) return res.status(400).json({ error: "email required" });
 
@@ -383,7 +384,7 @@ app.post("https://merry-paprenjak-7cd359.netlify.app/api/sos-alert", async (req,
 // ═══════════════════════════════════════════════
 
 // sign up
-app.post("https://merry-paprenjak-7cd359.netlify.app/user/register", async (req, res) => {
+app.post(HOST_URL+"/user/register", async (req, res) => {
   const { fullname, email, phone } = req.body;
   const password = await bcrypt.hash(req.body.password, 10);
   try {
@@ -406,7 +407,7 @@ app.post("https://merry-paprenjak-7cd359.netlify.app/user/register", async (req,
 })
 
 // login
-app.post("https://merry-paprenjak-7cd359.netlify.app/user/login", async function (req, res) {
+app.post(HOST_URL+"/user/login", async function (req, res) {
   const email = req.body.email;
   const password = req.body.password;
   const status = await db.collection('users').where("email", "==", email).get()

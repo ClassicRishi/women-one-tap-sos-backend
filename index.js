@@ -11,11 +11,11 @@ const { MongoClient } = require("mongodb");
 const app = express();
 const PORT = process.env.PORT;
 const HOST_URL = process.env.HOST_URL;
-app.use(cors({
-  origin: HOST_URL,
-  methods: ["post","get"],
-  credentials: true
-}))
+// app.use(cors({
+//   origin: HOST_URL,
+//   methods: ["GET","POST"],
+//   credentials: true
+// }))
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 app.set("view engine", "pug")
@@ -24,7 +24,6 @@ app.set("view engine", "pug")
 //   changeOrigin: true,
 //   pathRewrite: { '^/frontend': '' }
 // }))
-
 
 let riskData;
 

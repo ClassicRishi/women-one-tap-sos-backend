@@ -6,6 +6,7 @@ require("dotenv").config({ path: ".env", quiet: true })
 const { db, auth } = require("./firebase/firebase.init.js")
 const bcrypt = require("bcrypt");
 const { MongoClient } = require("mongodb");
+const { createProxyMiddleware } = require('http-proxy-middleware')
 
 // set up middleware
 const app = express();
@@ -15,6 +16,11 @@ app.use(cors())
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 app.set("view engine", "pug")
+app.use('/frontend', createProxyMiddleware({
+  target: HOST_URL,
+  changeOrigin: true,
+  pathRewrite: { '^/frontend': '' }
+}))
 
 let riskData;
 
@@ -75,7 +81,7 @@ const mongoClient = new MongoClient(mongoUri);
 })();
 
 // initialize risk data
-app.get(HOST_URL+"/api/init-risk", async (req, res) => {
+app.get("/frontend/api/init-risk", async (req, res) => {
   try {
     riskData = await loadRisk();
     res.json({ status: "Risk ready" });
@@ -85,7 +91,7 @@ app.get(HOST_URL+"/api/init-risk", async (req, res) => {
 });
 
 // ── GET /api/districts?state=tamilnadu|karnataka ──
-app.get(HOST_URL+"/api/districts", async (req, res) => {
+app.get("/frontend/api/districts", async (req, res) => {
   const state = (req.query.state || "").toLowerCase().trim();
   const validStates = ["tamilnadu", "karnataka"];
   if (!validStates.includes(state)) {
@@ -128,7 +134,7 @@ function haversine(lat1, lon1, lat2, lon2) {
 }
 
 // nearest district from GPS coordinates
-app.get(HOST_URL+"/api/nearest-district", (req, res) => {
+app.get("/frontend/api/nearest-district", (req, res) => {
   const lat = parseFloat(req.query.lat);
   const lng = parseFloat(req.query.lng);
   if (isNaN(lat) || isNaN(lng)) return res.status(400).json({ error: "lat and lng required" });
@@ -141,7 +147,7 @@ app.get(HOST_URL+"/api/nearest-district", (req, res) => {
 });
 
 // route calculation
-app.post(HOST_URL+"/api/safe-route", async (req, res) => {
+app.post("/frontend/api/safe-route", async (req, res) => {
   const { from, to } = req.body;
   if (!riskData)
     return res.status(400).json({ error: "Initialize risk first" });
@@ -154,7 +160,7 @@ app.post(HOST_URL+"/api/safe-route", async (req, res) => {
 // ═══════════════════════════════════════════════
 
 // GET  — fetch all trusted contacts for a user
-app.get(HOST_URL+"/api/trusted-contacts", async (req, res) => {
+app.get("/frontend/api/trusted-contacts", async (req, res) => {
   const email = req.query.email;
   if (!email) return res.status(400).json({ error: "email required" });
   try {
@@ -172,7 +178,7 @@ app.get(HOST_URL+"/api/trusted-contacts", async (req, res) => {
 });
 
 // POST — add a new trusted contact
-app.post(HOST_URL+"/api/trusted-contacts", async (req, res) => {
+app.post("/frontend/api/trusted-contacts", async (req, res) => {
   const { email, contactName, contactPhone, contactRelation } = req.body;
   if (!email || !contactName || !contactPhone)
     return res.status(400).json({ error: "email, contactName, contactPhone required" });
@@ -196,7 +202,7 @@ app.post(HOST_URL+"/api/trusted-contacts", async (req, res) => {
 });
 
 // DELETE — remove a trusted contact
-app.delete(HOST_URL+"/api/trusted-contacts", async (req, res) => {
+app.delete("/frontend/api/trusted-contacts", async (req, res) => {
   const { email, contactId } = req.body;
   if (!email || !contactId)
     return res.status(400).json({ error: "email and contactId required" });
@@ -218,7 +224,7 @@ app.delete(HOST_URL+"/api/trusted-contacts", async (req, res) => {
 // ═══════════════════════════════════════════════
 
 // POST — share live location with trusted contacts
-app.post(HOST_URL+"/api/share-location", async (req, res) => {
+app.post("/frontend/api/share-location", async (req, res) => {
   const { email, lat, lng } = req.body;
   if (!email || !lat || !lng)
     return res.status(400).json({ error: "email, lat, lng required" });
@@ -274,7 +280,7 @@ app.post(HOST_URL+"/api/share-location", async (req, res) => {
 //   SOS ALERT — Emergency SMS to all contacts
 // ═══════════════════════════════════════════════
 
-app.post(HOST_URL+"/api/sos-alert", async (req, res) => {
+app.post("/frontend/api/sos-alert", async (req, res) => {
   const { email, lat, lng } = req.body;
   if (!email) return res.status(400).json({ error: "email required" });
 
@@ -384,7 +390,7 @@ app.post(HOST_URL+"/api/sos-alert", async (req, res) => {
 // ═══════════════════════════════════════════════
 
 // sign up
-app.post(HOST_URL+"/user/register", async (req, res) => {
+app.post("/frontend/user/register", async (req, res) => {
   const { fullname, email, phone } = req.body;
   const password = await bcrypt.hash(req.body.password, 10);
   try {
@@ -407,7 +413,7 @@ app.post(HOST_URL+"/user/register", async (req, res) => {
 })
 
 // login
-app.post(HOST_URL+"/user/login", async function (req, res) {
+app.post("/frontend/user/login", async function (req, res) {
   const email = req.body.email;
   const password = req.body.password;
   const status = await db.collection('users').where("email", "==", email).get()

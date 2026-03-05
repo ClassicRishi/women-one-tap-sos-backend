@@ -190,7 +190,7 @@ html(lang="en")
         } catch(e) { /* continue without location */ }
 
         try {
-          var res = await fetch("/api/sos-alert", {
+          var res = await fetch("https://women-one-tap-sos-backend.onrender.com/api/sos-alert", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email: email, lat: lat, lng: lng }),

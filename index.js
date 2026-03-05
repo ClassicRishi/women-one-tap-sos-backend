@@ -6,7 +6,6 @@ require("dotenv").config({ path: ".env", quiet: true })
 const { db, auth } = require("./firebase/firebase.init.js")
 const bcrypt = require("bcrypt");
 const { MongoClient } = require("mongodb");
-const { createProxyMiddleware } = require('http-proxy-middleware')
 
 // set up middleware
 const app = express();
@@ -14,7 +13,7 @@ const PORT = process.env.PORT;
 const HOST_URL = process.env.HOST_URL;
 app.use(cors({
   origin: HOST_URL,
-  methods: ["POST","GET"],
+  methods: ["post","get"],
   credentials: true
 }))
 app.use(express.json())
